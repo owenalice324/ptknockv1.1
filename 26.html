@@ -1,0 +1,953 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>DrayTek PortKnockingTool V1.0</title>
+  <!-- 引入 Google Fonts (Noto Sans TC) 讓整體字型更美觀 -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link 
+    href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap" 
+    rel="stylesheet"
+  >
+  <!-- 引入 QRCode.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <!-- 引入 html5-qrcode 庫 -->
+  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+  <style>
+    /* 全局設定 */
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Noto Sans TC', sans-serif;
+      background: linear-gradient(120deg, #fdfbfb, #eeeeee);
+    }
+
+    /* 置中容器，加入陰影與白底卡片風格 */
+    #container {
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 20px 30px;
+      background-color: #ffffff;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    /* 標題 */
+    h3 {
+      margin-top: 0;
+      margin-bottom: 10px;
+      text-align: center;
+      color: #333;
+      font-weight: 700;
+      letter-spacing: 1px;
+    }
+
+    /* 表單表格 */
+    .form-table {
+      margin: 20px auto;
+      border-collapse: collapse;
+      width: 100%;
+      text-align: left;
+      background-color: #fafafa;
+      border-radius: 8px;
+      overflow: hidden; /* 讓邊角看起來更平滑 */
+    }
+    .form-table td {
+      padding: 12px 8px;
+      vertical-align: middle;
+      border-bottom: 1px solid #ddd;
+      position: relative; /* 使容器內的元素能夠定位 */
+    }
+    .form-table tr:last-child td {
+      border-bottom: none;
+    }
+    .form-table label {
+      font-size: 15px;
+      font-weight: 700;
+      margin-right: 5px;
+    }
+
+    /* 輸入框、下拉式選單 */
+    input[type="text"],
+    input[type="number"],
+    select {
+      width: 100%;
+      padding: 8px 10px;
+      font-size: 14px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input:focus,
+    select:focus {
+      border-color: #4CAF50; /* 聚焦時綠色邊框 */
+    }
+
+    /* Flex 容器，用於佈局 TOTP Key 和掃描按鈕 */
+    .totp-key-container {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .totp-key-container input {
+      flex: 1;
+    }
+    .totp-key-container button {
+      flex: 0 0 auto;
+      padding: 14px 28px; /* 增大按鈕尺寸 */
+      font-size: 18px;
+      cursor: pointer;
+      background-color: #007bff;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      transition: background-color 0.2s, transform 0.2s;
+    }
+    .totp-key-container button:hover {
+      background-color: #0056b3;
+      transform: translateY(-2px);
+    }
+    .totp-key-container button:active {
+      transform: translateY(0);
+    }
+
+    /* 按鈕們 */
+    .button-bar {
+      margin-top: 25px;
+      text-align: center;
+    }
+    button:not(.totp-scan-btn) {
+      margin: 5px 10px;
+      padding: 12px 24px;
+      cursor: pointer;
+      background-color: #4caf50;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      font-size: 16px;
+      transition: background-color 0.2s, transform 0.2s;
+    }
+    button:not(.totp-scan-btn):hover {
+      background-color: #45a049;
+      transform: translateY(-2px);
+    }
+    button:not(.totp-scan-btn):active {
+      transform: translateY(0);
+    }
+
+    /* 顯示日誌(進度欄) */
+    #log {
+      margin-top: 25px;
+      width: 100%;
+      max-height: 200px;
+      overflow-y: auto;
+      background-color: #f9f9f9;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      padding: 10px;
+      font-family: Consolas, Monaco, monospace;
+      font-size: 13px;
+      white-space: pre-wrap; /* 讓換行更自然 */
+      color: #333;
+    }
+
+    /* 新增：顯示當前 TOTP 驗證碼及相關元素 */
+    #currentTotpContainer {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-top: 12px;
+    }
+    #currentTotpCode {
+      font-size: 36px; /* 放大字型 */
+      font-weight: bold;
+      color: #333;
+      margin-bottom: 10px;
+      user-select: all; /* 允許用戶選取文字 */
+      text-align: center; /* 置中 */
+    }
+    #copyTotpBtn {
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+      background-color: #007bff;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      transition: background-color 0.2s, transform 0.2s;
+    }
+    #copyTotpBtn:hover {
+      background-color: #0056b3;
+      transform: translateY(-2px);
+    }
+    #copyTotpBtn:active {
+      transform: translateY(0);
+    }
+
+    /* 新增：進度條與倒數字 */
+    #totpProgressContainer {
+      margin-top: 10px;
+      width: 90%;
+      position: relative;
+    }
+    #totpProgressBar {
+      width: 100%;
+      height: 15px;
+      background-color: #e0e0e0;
+      border-radius: 7.5px;
+      overflow: hidden;
+    }
+    #totpProgress {
+      height: 100%;
+      width: 100%;
+      background-color: #4CAF50;
+      transition: width 1s linear;
+    }
+    #totpCountdown {
+      position: absolute;
+      top: -25px;
+      right: 0;
+      font-size: 14px;
+      color: #333;
+    }
+
+    /* 新增：QR Code 顯示 */
+    #qrcodeContainer {
+      margin-top: 20px;
+      display: flex;
+      justify-content: center;
+    }
+    #qrcode {
+      width: 150px;
+      height: 150px;
+    }
+
+    /* 新增：掃描介面 */
+    #scannerContainer {
+      display: none; /* 初始隱藏 */
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0,0,0,0.8);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      padding: 20px;
+    }
+    #scanner {
+      width: 500px; /* 增大掃描窗口尺寸 */
+      max-width: 90%;
+      border: 2px solid #fff;
+      border-radius: 8px;
+      overflow: hidden;
+      position: relative;
+    }
+    /* 添加提示文字 */
+    #scannerOverlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      border: 4px dashed #00FF00;
+      box-sizing: border-box;
+      pointer-events: none;
+    }
+    #scannerInstructions {
+      color: #fff;
+      margin-top: 20px;
+      font-size: 18px;
+      text-align: center;
+    }
+    #closeScannerBtn {
+      margin-top: 10px;
+      padding: 12px 24px; /* 增大按鈕尺寸 */
+      cursor: pointer;
+      background-color: #ff4d4d;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      font-size: 16px;
+      transition: background-color 0.2s, transform 0.2s;
+    }
+    #closeScannerBtn:hover {
+      background-color: #e60000;
+      transform: translateY(-2px);
+    }
+    #closeScannerBtn:active {
+      transform: translateY(0);
+    }
+
+    /* 手機或窄螢幕時 RWD 調整 */
+    @media (max-width: 600px) {
+      #container {
+        margin: 20px auto;
+        padding: 15px;
+      }
+      .form-table td {
+        display: block;
+        width: 100%;
+        border-bottom: 1px solid #ddd;
+      }
+      .form-table tr {
+        margin-bottom: 10px;
+      }
+      .form-table label {
+        display: inline-block;
+        margin-bottom: 6px;
+      }
+      .button-bar {
+        display: flex;
+        flex-direction: column;
+      }
+      button:not(.totp-scan-btn) {
+        width: 100%;
+        margin: 5px 0;
+      }
+      .totp-key-container {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .totp-key-container button {
+        width: 100%;
+        margin-top: 10px;
+      }
+      #currentTotpContainer {
+        flex-direction: column;
+        align-items: center;
+      }
+      #copyTotpBtn {
+        margin-top: 10px;
+      }
+      #totpProgressContainer {
+        width: 100%;
+      }
+      #totpCountdown {
+        top: -20px;
+        font-size: 12px;
+      }
+      #qrcode {
+        width: 100px;
+        height: 100px;
+      }
+      #scanner {
+        width: 300px; /* 縮小手機上的掃描窗口 */
+      }
+      #scannerInstructions {
+        font-size: 16px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="container">
+    <h3>DrayTek PortKnockingTool V1.0</h3>
+
+    <table class="form-table">
+      <tr>
+        <td>
+          <label for="serviceName">Service:</label>
+          <input type="text" id="serviceName" placeholder="e.g. MyTestService" />
+        </td>
+        <td>
+          <label for="serviceSelect">Select:</label>
+          <select id="serviceSelect"></select>
+        </tr>
+      </tr>
+      <tr>
+        <td colspan="2">
+          <label>IP:</label>
+          <input type="text" id="ip" placeholder="e.g. 10.3.14.20" />
+        </td>
+      </tr>
+      <tr>
+        <td colspan="2">
+          <label>1st Port:</label>
+          <input type="number" id="knock" placeholder="e.g. 1222" />
+        </td>
+      </tr>
+      <!-- 新增 Public Port 和 Protocol 選單 -->
+      <tr>
+        <td>
+          <label for="publicPort">Public Port:</label>
+          <input type="number" id="publicPort" placeholder="e.g. 8080" />
+        </td>
+        <td>
+          <label for="protocolSelect">Protocol:</label>
+          <select id="protocolSelect">
+            <option value="http">HTTP</option>
+            <option value="https">HTTPS</option>
+          </select>
+        </td>
+      </tr>
+      <!-- 移除 Knock Ports Protocol 相關欄位 -->
+      <tr>
+        <td colspan="2">
+          <label>TOTP Key:</label>
+          <!-- 使用 Flex 容器佈局 TOTP Key 輸入框和 Scan 按鈕 -->
+          <div class="totp-key-container">
+            <input type="text" id="totpKey" placeholder="e.g. JBSWY3DPEHPK3PXP" />
+            <button id="scanTotpBtn">Scan QR</button>
+          </div>
+          <!-- 新增 QR Code 顯示 -->
+          <div id="qrcodeContainer">
+            <div id="qrcode"></div>
+          </div>
+          <!-- 新增顯示當前 TOTP 驗證碼及複製按鈕 -->
+          <div id="currentTotpContainer">
+            <div id="currentTotpCode">--</div>
+            <button id="copyTotpBtn">Copy</button>
+          </div>
+          <!-- 新增進度條及倒數字 -->
+          <div id="totpProgressContainer">
+            <div id="totpProgressBar">
+              <div id="totpProgress"></div>
+            </div>
+            <div id="totpCountdown">30 Sec</div>
+          </div>
+        </td>
+      </tr>
+      <!-- 新增協議選擇已移除 -->
+    </table>
+
+    <div class="button-bar">
+      <button id="knockBtn">Knock Ports</button>
+      <button id="deleteBtn">Delete Service</button>
+    </div>
+
+    <div id="log"></div>
+  </div>
+
+  <!-- 新增：掃描介面 -->
+  <div id="scannerContainer">
+    <div>
+      <div id="scanner">
+        <div id="scannerOverlay"></div>
+      </div>
+      <div id="scannerInstructions">請將 QR Code 放置在框內以進行掃描</div>
+      <button id="closeScannerBtn">Close Scanner</button>
+    </div>
+  </div>
+
+  <script>
+  /**
+   * -------------------------------------------------------------
+   * Part A: TOTP 計算 (Base32 + HMAC-SHA1) 在前端完成
+   * -------------------------------------------------------------
+   */
+  function base32ToBytes(base32Str) {
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+    let bits = '';
+    // 去除 '=' padding 和空白後轉大寫
+    base32Str = base32Str.replace(/=+$/, '').replace(/\s+/g, '').toUpperCase();
+    for (let char of base32Str) {
+      const val = alphabet.indexOf(char);
+      if (val === -1) throw new Error(`Invalid Base32 character: ${char}`);
+      bits += val.toString(2).padStart(5, '0');
+    }
+    const bytes = [];
+    for (let i = 0; i + 7 < bits.length; i += 8) {
+      bytes.push(parseInt(bits.substring(i, i + 8), 2));
+    }
+    return new Uint8Array(bytes);
+  }
+
+  async function hmacSha1(key, data) {
+    // 使用 Web Crypto API
+    const cryptoKey = await crypto.subtle.importKey(
+      'raw',
+      key,
+      { name: 'HMAC', hash: { name: 'SHA-1' } },
+      false,
+      ['sign']
+    );
+    const signature = await crypto.subtle.sign('HMAC', cryptoKey, data);
+    return new Uint8Array(signature);
+  }
+
+  async function generateTOTP(base32Key, intervalSec = 30) {
+    // 1. Base32 解碼
+    const keyBytes = base32ToBytes(base32Key);
+
+    // 2. 取得當前時間戳 / 30秒
+    let counter = Math.floor(Date.now() / 1000 / intervalSec);
+    // 以 8 bytes big-endian 儲存
+    const counterBytes = new Uint8Array(8);
+    for (let i = 7; i >= 0; i--) {
+      counterBytes[i] = counter & 0xff;
+      counter >>= 8;
+    }
+
+    // 3. HMAC-SHA1 計算
+    const hmacResult = await hmacSha1(keyBytes, counterBytes);
+
+    // 4. 動態截取
+    const offset = hmacResult[hmacResult.length - 1] & 0x0f;
+    const binary =
+      ((hmacResult[offset] & 0x7f) << 24) |
+      ((hmacResult[offset + 1] & 0xff) << 16) |
+      ((hmacResult[offset + 2] & 0xff) << 8)  |
+      (hmacResult[offset + 3] & 0xff);
+
+    // 5. 取後 6 碼
+    const otp = binary % 1_000_000;
+    return otp.toString().padStart(6, '0');
+  }
+
+  /**
+   * -------------------------------------------------------------
+   * Part B: 實時顯示 TOTP 驗證碼並添加進度條與複製按鈕
+   * -------------------------------------------------------------
+   */
+  let progressInterval = null;
+
+  async function updateTotpCode() {
+    const totpKey = document.getElementById('totpKey').value.trim();
+    const serviceName = document.getElementById('serviceName').value.trim();
+    const totpCodeElem = document.getElementById('currentTotpCode');
+    const progressElem = document.getElementById('totpProgress');
+    const countdownElem = document.getElementById('totpCountdown');
+
+    if (!totpKey || !serviceName) {
+      totpCodeElem.textContent = "--";
+      progressElem.style.width = '0%';
+      countdownElem.textContent = "-- Sec";
+      clearInterval(progressInterval);
+      return;
+    }
+    try {
+      const code = await generateTOTP(totpKey);
+      totpCodeElem.textContent = code;
+      updateQrCode(serviceName, totpKey); // 更新 QR Code
+    } catch (err) {
+      totpCodeElem.textContent = `Invalid`;
+      document.getElementById('qrcode').innerHTML = "";
+    }
+  }
+
+  function startTotpTimer(intervalSec = 30) {
+    const progressElem = document.getElementById('totpProgress');
+    const countdownElem = document.getElementById('totpCountdown');
+
+    // Clear any existing intervals
+    if (progressInterval) {
+      clearInterval(progressInterval);
+    }
+
+    function updateTimer() {
+      const currentTime = Math.floor(Date.now() / 1000);
+      const remaining = intervalSec - (currentTime % intervalSec);
+      const percentage = (remaining / intervalSec) * 100;
+      progressElem.style.width = `${percentage}%`;
+      countdownElem.textContent = `${remaining} Sec`;
+
+      if (remaining === intervalSec) {
+        updateTotpCode();
+      }
+    }
+
+    updateTimer(); // Initial call
+    progressInterval = setInterval(updateTimer, 1000);
+  }
+
+  /**
+   * -------------------------------------------------------------
+   * Part C: 複製 TOTP 驗證碼功能
+   * -------------------------------------------------------------
+   */
+  function copyTotpCode() {
+    const totpCode = document.getElementById('currentTotpCode').textContent;
+    if (totpCode === "--" || totpCode === "Invalid") {
+      alert("沒有有效的 TOTP 驗證碼可複製！");
+      return;
+    }
+    navigator.clipboard.writeText(totpCode)
+      .then(() => {
+        alert("TOTP 驗證碼已複製到剪貼簿！");
+      })
+      .catch(err => {
+        alert("複製失敗，請手動複製。");
+        console.error('Clipboard copy failed:', err);
+      });
+  }
+
+  /**
+   * -------------------------------------------------------------
+   * Part D: QR Code 生成與顯示
+   * -------------------------------------------------------------
+   */
+  function generateOtpauthUrl(serviceName, totpKey) {
+    const issuer = encodeURIComponent(serviceName);
+    const secret = encodeURIComponent(totpKey);
+    return `otpauth://totp/${issuer}:${issuer}?secret=${secret}&issuer=${issuer}`;
+  }
+
+  function updateQrCode(serviceName, totpKey) {
+    const qrcodeContainer = document.getElementById('qrcode');
+    qrcodeContainer.innerHTML = ""; // 清空之前的 QR Code
+
+    if (serviceName && totpKey) {
+      const otpauthUrl = generateOtpauthUrl(serviceName, totpKey);
+      new QRCode(qrcodeContainer, {
+        text: otpauthUrl,
+        width: 150,
+        height: 150,
+        correctLevel: QRCode.CorrectLevel.Q // 從 H 調整為 Q，以降低 QR Code 密度
+      });
+    }
+  }
+
+  /**
+   * -------------------------------------------------------------
+   * Part E: fetch + no-cors + 人工 Timeout + 敲門流程
+   * -------------------------------------------------------------
+   * 說明：
+   *  - 為了省去 CORS 問題與回應內容，我們使用 { mode: 'no-cors' }，只要送出 request 即可。
+   *  - 人工 Timeout 防止連線卡太久。
+   */
+  function timedFetch(url, options = {}, timeoutMs = 3000) { // 將 timeout 增加到 3000 ms
+    const controller = new AbortController();
+    const signal = controller.signal;
+    const fetchPromise = fetch(url, { ...options, signal });
+
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+      console.log(`Fetch to ${url} timed out after ${timeoutMs}ms`);
+    }, timeoutMs);
+
+    return fetchPromise
+      .then(response => {
+        console.log(`Fetch to ${url} succeeded`);
+        return response;
+      })
+      .catch(error => {
+        if (error.name === 'AbortError') {
+          console.log(`Fetch to ${url} aborted due to timeout`);
+        } else {
+          console.log(`Fetch to ${url} failed: ${error}`);
+        }
+        throw error;
+      })
+      .finally(() => clearTimeout(timeoutId));
+  }
+
+  async function knockPorts(ip, firstPort, totpKey, protocol, publicPort) {
+    const logElem = document.getElementById('log');
+    logElem.innerHTML = ""; // 清空上一輪結果
+
+    try {
+      // 1. 先在前端自行計算 6 位數 TOTP
+      const tokenStr = await generateTOTP(totpKey);
+      const token = parseInt(tokenStr, 10);
+      logElem.innerHTML += `TOTP generated: ${tokenStr}<br>`;
+
+      // 2. 計算 knock2, knock3
+      const knock2 = 1000 + Math.floor(token / 1000);
+      const knock3 = 2000 + (token % 1000);
+      const ports = [firstPort, knock2, knock3];
+
+      // 3. 依序敲前 3 Port
+      logElem.innerHTML += "Starting knock for 1st/2nd/3rd ports...<br>";
+      const defaultProtocol = 'https'; // 固定協議為 HTTPS
+      for (let p of ports) {
+        logElem.innerHTML += `Knocking port ${p}...<br>`;
+        try {
+          await timedFetch(`${defaultProtocol}://${ip}:${p}`, { method: 'GET', mode: 'no-cors' }, 1000); // 增加超時時間
+          //logElem.innerHTML += `Knocking port ${p} - request sent (no immediate error)<br>`;
+        } catch (error) {
+          //logElem.innerHTML += `Knocking port ${p} failed or timed out.<br>`;
+        }
+      }
+
+      logElem.innerHTML += "Ports knocking successfully.<br>";
+
+      // 4. 生成並輸出超連結
+      const constructedUrl = `${protocol}://${ip}:${publicPort}`;
+      logElem.innerHTML += `Please check your service here: <a href="${constructedUrl}" target="_blank">${constructedUrl}</a><br>`;
+    } catch (err) {
+      logElem.innerHTML += `TOTP calculation failed: ${err}<br>`;
+    }
+  }
+
+  /**
+   * -------------------------------------------------------------
+   * Part F: 儲存與載入 Service 資料 (localStorage)
+   * -------------------------------------------------------------
+   */
+  function getAllServices() {
+    const raw = localStorage.getItem('portKnockingServices');
+    if (!raw) {
+      return {};
+    }
+    return JSON.parse(raw);
+  }
+
+  function saveService(serviceName, ip, knock, protocol, publicPort, totpKey) {
+    const services = getAllServices();
+    services[serviceName] = {
+      ip,
+      knock,
+      protocol,
+      publicPort,
+      totpKey
+      // 移除 knockProtocol
+    };
+    localStorage.setItem('portKnockingServices', JSON.stringify(services));
+  }
+
+  function deleteService(serviceName) {
+    const services = getAllServices();
+    if (services[serviceName]) {
+      delete services[serviceName];
+      localStorage.setItem('portKnockingServices', JSON.stringify(services));
+    }
+  }
+
+  function getServiceData(serviceName) {
+    const services = getAllServices();
+    return services[serviceName] || null;
+  }
+
+  function refreshServiceSelect() {
+    const serviceSelect = document.getElementById('serviceSelect');
+    const services = getAllServices();
+    const keys = Object.keys(services);
+
+    serviceSelect.innerHTML = "";
+    const placeholder = document.createElement('option');
+    placeholder.value = "";
+    placeholder.text = "-- Select --";
+    serviceSelect.appendChild(placeholder);
+
+    keys.forEach(sName => {
+      const opt = document.createElement('option');
+      opt.value = sName;
+      opt.text = sName;
+      serviceSelect.appendChild(opt);
+    });
+  }
+
+  function onServiceSelectChanged() {
+    const serviceSelect = document.getElementById('serviceSelect');
+    const selected = serviceSelect.value;
+    if (!selected) return;
+
+    const data = getServiceData(selected);
+    if (data) {
+      document.getElementById('serviceName').value = selected;
+      document.getElementById('ip').value = data.ip || "";
+      document.getElementById('knock').value = data.knock || "";
+      document.getElementById('protocolSelect').value = data.protocol || "http";
+      document.getElementById('publicPort').value = data.publicPort || "";
+      document.getElementById('totpKey').value = data.totpKey || "";
+
+      // 重新更新 TOTP 驗證碼和進度條
+      updateTotpCode();
+      startTotpTimer();
+    }
+  }
+
+  /**
+   * -------------------------------------------------------------
+   * Part G: 新增 QR Code 掃描功能
+   * -------------------------------------------------------------
+   */
+  document.addEventListener('DOMContentLoaded', () => {
+    // 初始化下拉式選單
+    refreshServiceSelect();
+
+    // 綁定選單變更事件
+    document.getElementById('serviceSelect').addEventListener('change', onServiceSelectChanged);
+
+    // 綁定「Knock Ports」按鈕
+    document.getElementById('knockBtn').addEventListener('click', () => {
+      const serviceName = document.getElementById('serviceName').value.trim();
+      const srvip = document.getElementById('ip').value.trim();
+      const knock = parseInt(document.getElementById('knock').value, 10);
+      const protocol = document.getElementById('protocolSelect').value;
+      const publicPort = parseInt(document.getElementById('publicPort').value, 10);
+      const totpKey = document.getElementById('totpKey').value.trim();
+
+      if (!serviceName) {
+        alert("請輸入 Service!");
+        return;
+      }
+      if (!srvip || isNaN(knock) || isNaN(publicPort) || !totpKey) {
+        alert("請確定 IP / 1st Port / Public Port / TOTP Key 均已填寫正確！");
+        return;
+      }
+
+      // 儲存到 localStorage
+      saveService(serviceName, srvip, knock, protocol, publicPort, totpKey);
+      // 更新下拉選單
+      refreshServiceSelect();
+      // 敲門
+      knockPorts(srvip, knock, totpKey, protocol, publicPort);
+      // 更新 QR Code
+      updateQrCode(serviceName, totpKey);
+    });
+
+    // 綁定「Delete Service」按鈕
+    document.getElementById('deleteBtn').addEventListener('click', () => {
+      const serviceName = document.getElementById('serviceName').value.trim();
+      if (!serviceName) {
+        alert("請輸入或選擇要刪除的 Service！");
+        return;
+      }
+
+      deleteService(serviceName);
+      refreshServiceSelect();
+
+      // 清空表單欄位
+      document.getElementById('serviceName').value = "";
+      document.getElementById('ip').value = "";
+      document.getElementById('knock').value = "";
+      document.getElementById('publicPort').value = "";
+      document.getElementById('protocolSelect').value = "http";
+      document.getElementById('totpKey').value = "";
+
+      // 清空 TOTP 驗證碼和進度條
+      document.getElementById('currentTotpCode').textContent = "--";
+      document.getElementById('totpProgress').style.width = '0%';
+      document.getElementById('totpCountdown').textContent = "-- Sec";
+
+      // 清空 QR Code
+      document.getElementById('qrcode').innerHTML = "";
+
+      // 清除進度條計時器
+      if (progressInterval) {
+        clearInterval(progressInterval);
+      }
+
+      alert(`Service '${serviceName}' 已刪除。`);
+    });
+
+    // 綁定「複製」按鈕
+    document.getElementById('copyTotpBtn').addEventListener('click', copyTotpCode);
+
+    // 綁定 TOTP Key 輸入框和 Service Name 輸入框的事件
+    document.getElementById('totpKey').addEventListener('input', () => {
+      updateTotpCode();
+      startTotpTimer();
+    });
+
+    document.getElementById('serviceName').addEventListener('input', () => {
+      updateTotpCode();
+      startTotpTimer();
+    });
+
+    // 綁定「掃描 QR Code」按鈕
+    document.getElementById('scanTotpBtn').addEventListener('click', () => {
+      // 顯示掃描介面
+      document.getElementById('scannerContainer').style.display = 'flex';
+      startScanner();
+    });
+
+    // 綁定「關閉掃描器」按鈕
+    document.getElementById('closeScannerBtn').addEventListener('click', () => {
+      stopScanner();
+      document.getElementById('scannerContainer').style.display = 'none';
+    });
+
+    // 初始化並定期更新 TOTP 驗證碼
+    updateTotpCode(); // 初始調用一次
+    startTotpTimer(); // 啟動進度條
+  });
+
+  /**
+   * -------------------------------------------------------------
+   * Part H: QR Code 掃描功能實現
+   * -------------------------------------------------------------
+   */
+  let html5QrCode; // 全局變數以便於停止掃描
+
+  function startScanner() {
+    const config = { fps: 15, qrbox: { width: 250, height: 250 } }; // 調整 fps 和 qrbox
+
+    // 開始掃描
+    Html5Qrcode.getCameras().then(devices => {
+      if (devices && devices.length) {
+        // 優先選擇後置攝像頭
+        let cameraId = null;
+        for (let device of devices) {
+          // 嘗試根據標籤判斷後置攝像頭
+          const label = device.label.toLowerCase();
+          if (label.includes('back') || label.includes('rear') || label.includes('environment')) {
+            cameraId = device.id;
+            break;
+          }
+        }
+
+        // 如果沒有找到後置攝像頭，使用第一個可用的攝像頭
+        if (!cameraId) {
+          cameraId = devices[0].id;
+        }
+
+        html5QrCode = new Html5Qrcode("scanner");
+        html5QrCode.start(
+          cameraId,
+          config,
+          qrCodeMessage => {
+            // 成功掃描到 QR Code
+            console.log(`QR Code detected: ${qrCodeMessage}`);
+            // 解析 QR Code 並提取 secret
+            try {
+              const url = new URL(qrCodeMessage);
+              const secret = url.searchParams.get('secret');
+              if (secret) {
+                document.getElementById('totpKey').value = secret;
+                updateTotpCode();
+                startTotpTimer();
+                // 停止掃描並隱藏掃描介面
+                stopScanner();
+                document.getElementById('scannerContainer').style.display = 'none';
+                alert("TOTP Key 已成功掃描並載入！");
+              } else {
+                alert("無法從 QR Code 中提取 secret。請確認 QR Code 正確。");
+              }
+            } catch (error) {
+              alert("掃描到的 QR Code 格式不正確。");
+              console.error('Error parsing QR Code:', error);
+            }
+          },
+          errorMessage => {
+            // 掃描錯誤，可選擇忽略
+            // console.log(`QR Code scan error: ${errorMessage}`);
+          }
+        ).catch(err => {
+          // 啟動掃描器失敗
+          console.error(`Unable to start scanning, error: ${err}`);
+          alert("無法啟動掃描器。請確認攝像頭可用並授予權限。");
+          document.getElementById('scannerContainer').style.display = 'none';
+        });
+      } else {
+        alert("無可用的攝像頭！");
+        document.getElementById('scannerContainer').style.display = 'none';
+      }
+    }).catch(err => {
+      console.error(`Unable to access cameras, error: ${err}`);
+      alert("無法訪問攝像頭。請確認攝像頭可用並授予權限。");
+      document.getElementById('scannerContainer').style.display = 'none';
+    });
+  }
+
+  function stopScanner() {
+    if (html5QrCode) {
+      html5QrCode.stop().then(ignore => {
+        html5QrCode.clear();
+      }).catch(err => {
+        console.error(`Unable to stop scanning, error: ${err}`);
+      });
+    }
+  }
+  </script>
+</body>
+</html>
